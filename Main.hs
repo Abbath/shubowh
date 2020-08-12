@@ -14,17 +14,19 @@ powm b e m r
   | e `mod` 2 == 1 = powm (b * b `mod` m) (e `div` 2) m (r * b `mod` m)
 powm b e m r = powm (b * b `mod` m) (e `div` 2) m r
 
+main :: IO ()
 main = do 
     x <- getLine
     t <- getPOSIXTime
     let gen = mkStdGen (round t)
     let (p,q,n,e,d) = generate (read x :: Int) gen
-    let enc = map (encrypt n e) [1,2,3,4]
+    let enc = map (encrypt e n) [65]
     let dec = map (decrypt d n) enc
     putStrLn $ format "p:{}\nq:{}\nn:{}\ne:{}\nd:{}" p q n e d
     print enc
     print dec
 
+inverse :: Integral p => p -> p -> p
 inverse a n = go 0 n 1 a
   where 
     go t r newt newr = if newr == 0
@@ -37,15 +39,16 @@ inverse a n = go 0 n 1 a
 -- generate p and q such that λ(n) = lcm(p − 1, q − 1) is coprime with e and |p-q| >= 2^(keysize/2 - 100)
 generate :: Int -> StdGen -> (Integer, Integer, Integer, Integer, Integer)
 generate keysize gen = 
-    if (gcd e lambda /= 1 || abs (p - q) `shiftR` (keysize `div` 2 - 100) == 0 ) && p /= q
-        then (p, q, p * q, e , inverse e lambda) 
-        else generate keysize ng2
+    if gcd e lambda /= 1 || abs (p - q) `shiftR` (keysize `div` 2 - 100) == 0
+        then generate keysize ng2
+        else let d = inverse e lambda in (p, q, p * q, e, d) 
     where
         e = 65537
         (p, ng) = randomPrime (keysize `div` 2 - 4) gen
         (q, ng2) = randomPrime (keysize `div` 2 + 4) ng
         lambda = lcm (p-1) (q-1)
 
+randomPrime :: RandomGen t => Int -> t -> (Integer, t)
 randomPrime bits gen = let (p, ng) = uniformR (min, max) gen 
                        in if isPrime p 
                            then (p, ng) 
@@ -54,8 +57,10 @@ randomPrime bits gen = let (p, ng) = uniformR (min, max) gen
         min = 6074001000 `shiftL` (bits - 33) -- min ≈ √2 × 2^(bits - 1)
         max = 1 `shiftL` bits - 1  -- max = 2^(bits) - 1
 
-encrypt n e m = powMod m e n
+encrypt :: (Integral a, Integral b) => b -> a -> a -> a
+encrypt e n m = powMod m e n
 
+decrypt :: (Integral a, Integral b) => b -> a -> a -> a
 decrypt d n c = powMod c d n
 
 -- 200 564598 897894 373221 102549 839740 574051 (39 digits) = 13 664185 055464 474081 × 14 678123 728841 490371
